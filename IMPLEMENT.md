@@ -2,7 +2,7 @@
 
 ## Project setup and planning
 
-**Status:** tasks 1-7 complete, deploying next
+**Status:** live at https://rajeshpillai.github.io/task-tree/. Tasks 1-7 and 9 complete; task 8 (export/import) remains.
 
 ### Discussed and decided
 

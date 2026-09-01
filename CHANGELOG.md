@@ -118,3 +118,12 @@
 - Files: src/state/useProjectData.ts, src/components/ProjectPicker.tsx,
   src/components/StageEditor.tsx, src/components/UserEditor.tsx,
   src/components/TaskGrid.tsx, src/App.tsx, and their tests
+
+## [2026-09-02 02:52]
+- Deployed to GitHub Pages at https://rajeshpillai.github.io/task-tree/
+- Workflow builds the zen-ui submodule with bun before installing the app,
+  since the Vite alias points at a dist that is not committed and a checkout
+  without it cannot build. Then lint, test, build, publish.
+- Repo made public, which is what GitHub Pages needs on a free plan.
+- Verified live: seeded content renders, a stage change survives a reload.
+- Files: .github/workflows/pages.yml, README.md
