@@ -9,3 +9,4 @@ coverage/
 .vite/
 *.backup.[0-9]*
 archive/
+.playwright-mcp/
