@@ -2,7 +2,7 @@
 
 ## Project setup and planning
 
-**Status:** tasks 1-5 complete
+**Status:** tasks 1-7 complete, deploying next
 
 ### Discussed and decided
 
@@ -79,8 +79,17 @@ jsdom does no layout and ships no ResizeObserver, so a virtualizer measures a
 zero-height scroller and renders nothing. Disabling virtualization in tests
 would mean never testing the shipped configuration.
 
+**No drag and drop in v1, by decision.** TreeTable exposes no row-level drag
+hook, so dnd-kit cannot reach its rows without forking it. Reorder and reparent
+ship as menu actions, which cover the same operations and work from the
+keyboard. Drag goes upstream into zen-ui afterwards.
+
+**Selects in the grid are the platform select, not Radix.** Radix drives its
+controls from Pointer Events, which jsdom does not implement: a simulated click
+never opens them, and each open costs tens of seconds of test time. The native
+select is accessible and carries none of that.
+
 ### Blocked
 
-- **Task 9 (deploy).** The repo is private and GitHub Pages from a private
-  repo requires a paid plan. Needs `gh repo edit rajeshpillai/task-tree
-  --visibility public`, or confirmation of a Pro plan.
+Nothing blocked. The repo was made public on 2 September 2026, which unblocks
+GitHub Pages.

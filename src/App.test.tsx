@@ -12,9 +12,12 @@ beforeEach(async () => {
 });
 
 describe("App", () => {
-  it("shows the seeded project name once the database opens", async () => {
+  it("shows the seeded project as the selected one once the database opens", async () => {
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "My tasks" })).toBeInTheDocument();
+    // The select renders before the projects load, so wait for the option
+    // rather than for the control.
+    await screen.findByRole("option", { name: "My tasks" });
+    expect(screen.getByLabelText("Project")).toHaveDisplayValue("My tasks");
   });
 
   it("opens on the seeded sample tasks rather than an empty grid", async () => {

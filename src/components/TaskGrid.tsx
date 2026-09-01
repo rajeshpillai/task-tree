@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef, ExpandedState, SortingState } from "@tanstack/react-table";
 import {
-  Badge,
   EmptyState,
   EmptyStateDescription,
   EmptyStateTitle,
+  NativeSelect,
   TreeTable,
 } from "@algorisys/zen-ui-react";
 import type { Stage, Task, User } from "../db/schema";
@@ -23,6 +23,8 @@ export interface TaskGridProps {
   onIndentTask: (id: string) => void;
   onOutdentTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
+  onAssign: (id: string, assigneeId: string | null) => void;
+  onSetStage: (id: string, stageId: string) => void;
   loading?: boolean;
 }
 
@@ -41,6 +43,8 @@ export function TaskGrid({
   onIndentTask,
   onOutdentTask,
   onDeleteTask,
+  onAssign,
+  onSetStage,
   loading,
 }: TaskGridProps) {
   // Owned here rather than left to TreeTable, so a sort or a filter cannot
@@ -79,20 +83,21 @@ export function TaskGrid({
         header: "Assignee",
         enableGlobalFilter: false,
         sortDescFirst: false,
-        cell: ({ row }) => {
-          const user = row.original.assigneeId ? userById.get(row.original.assigneeId) : undefined;
-          if (!user) return <span className="zen-text-zen-muted-fg">Unassigned</span>;
-          return (
-            <span className="zen-inline-flex zen-items-center zen-gap-2">
-              <span
-                aria-hidden="true"
-                style={{ background: user.color }}
-                className="zen-inline-block zen-h-2 zen-w-2 zen-rounded-zen-full"
-              />
-              {user.name}
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <NativeSelect
+            aria-label={`Assignee for ${row.original.title}`}
+            value={row.original.assigneeId ?? ""}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onAssign(row.original.id, e.target.value === "" ? null : e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </NativeSelect>
+        ),
       },
       {
         id: "stage",
@@ -105,18 +110,23 @@ export function TaskGrid({
         // workflow that means the first click lands on Completed, so the
         // stages read backwards.
         sortDescFirst: false,
-        cell: ({ row }) => {
-          const stage = stageById.get(row.original.stageId);
-          if (!stage) return null;
-          return (
-            <Badge
-              variant="outline"
-              style={{ borderColor: stage.color, color: stage.color }}
-            >
-              {stage.name}
-            </Badge>
-          );
-        },
+        cell: ({ row }) => (
+          <NativeSelect
+            aria-label={`Stage for ${row.original.title}`}
+            value={stageById.has(row.original.stageId) ? row.original.stageId : ""}
+            style={{ color: stageById.get(row.original.stageId)?.color }}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onSetStage(row.original.id, e.target.value)}
+          >
+            {/* A task whose stage was removed still has to render something. */}
+            {!stageById.has(row.original.stageId) && <option value="">No stage</option>}
+            {stages.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </NativeSelect>
+        ),
       },
       {
         id: "dueDate",
@@ -153,13 +163,17 @@ export function TaskGrid({
     ],
     [
       onAddSubtask,
+      onAssign,
       onDeleteTask,
       onIndentTask,
       onMoveTask,
       onOutdentTask,
       onRenameTask,
+      onSetStage,
       stageById,
+      stages,
       userById,
+      users,
     ],
   );
 

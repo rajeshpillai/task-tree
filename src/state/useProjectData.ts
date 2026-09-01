@@ -1,18 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { projects, stages as stageRepo, tasks as taskRepo, users as userRepo } from "../db/repo";
-import { newId, type Project, type Stage, type Task, type User } from "../db/schema";
+import {
+  DEFAULT_STAGES,
+  newId,
+  type Project,
+  type Stage,
+  type Task,
+  type User,
+} from "../db/schema";
 import { canReparent, nextOrder, reorderSiblings, siblingsOf, subtreeIds } from "../lib/tree";
 
 /** Puts the deleted subtree back exactly as it was. */
 export type Undo = () => Promise<void>;
 
+/** Why a stage could not be removed, so the UI can say what is in the way. */
+export interface StageDeleteBlocked {
+  ok: false;
+  reason: "in-use" | "last-stage";
+  count: number;
+}
+
+export type StageDeleteResult = { ok: true } | StageDeleteBlocked;
+
 export interface ProjectData {
   loading: boolean;
   error: Error | null;
+  projects: Project[];
   project: Project | null;
   stages: Stage[];
   users: User[];
   tasks: Task[];
+  selectProject: (id: string) => Promise<void>;
+  createProject: (name: string) => Promise<Project | null>;
+  addStage: (name: string, color: string) => Promise<Stage | null>;
+  renameStage: (id: string, name: string) => Promise<void>;
+  recolorStage: (id: string, color: string) => Promise<void>;
+  deleteStage: (id: string) => Promise<StageDeleteResult>;
+  addUser: (name: string, color: string) => Promise<User | null>;
+  setTaskAssignee: (taskId: string, assigneeId: string | null) => Promise<void>;
+  setTaskStage: (taskId: string, stageId: string) => Promise<void>;
   addTask: (parentId: string | null, title?: string) => Promise<Task | null>;
   renameTask: (id: string, title: string) => Promise<void>;
   deleteTask: (id: string) => Promise<{ count: number; undo: Undo } | null>;
@@ -27,6 +53,7 @@ const NEW_TASK_TITLE = "New task";
 export function useProjectData(): ProjectData {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -52,13 +79,15 @@ export function useProjectData(): ProjectData {
 
     (async () => {
       try {
-        const [first] = await projects.all();
+        const all = await projects.all();
+        const [first] = all;
         const [projectStages, allUsers, projectTasks] = await Promise.all([
           stageRepo.byProject(first.id),
           userRepo.all(),
           taskRepo.byProject(first.id),
         ]);
         if (cancelled) return;
+        setAllProjects(all);
         setProject(first);
         setStages(projectStages);
         setUsers(allUsers);
@@ -233,10 +262,158 @@ export function useProjectData(): ProjectData {
     [commit],
   );
 
+  const selectProject = useCallback(
+    async (id: string) => {
+      const next = allProjects.find((p) => p.id === id);
+      if (!next || next.id === project?.id) return;
+
+      const [projectStages, projectTasks] = await Promise.all([
+        stageRepo.byProject(id),
+        taskRepo.byProject(id),
+      ]);
+      setProject(next);
+      setStages(projectStages);
+      commit(projectTasks);
+    },
+    [allProjects, commit, project],
+  );
+
+  const createProject = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed === "") return null;
+
+      const row: Project = { id: newId(), name: trimmed, createdAt: Date.now() };
+      await projects.put(row);
+
+      // A project with no stages cannot hold a task, so it starts with the
+      // same three the first project got.
+      const seeded: Stage[] = DEFAULT_STAGES.map((stage, i) => ({
+        id: newId(),
+        projectId: row.id,
+        name: stage.name,
+        color: stage.color,
+        order: i,
+      }));
+      for (const stage of seeded) await stageRepo.put(stage);
+
+      setAllProjects((current) => [...current, row]);
+      setProject(row);
+      setStages(seeded);
+      commit([]);
+      return row;
+    },
+    [commit],
+  );
+
+  const addStage = useCallback(
+    async (name: string, color: string) => {
+      const trimmed = name.trim();
+      if (!project || trimmed === "") return null;
+
+      const row: Stage = {
+        id: newId(),
+        projectId: project.id,
+        name: trimmed,
+        color,
+        order: stages.length === 0 ? 0 : stages[stages.length - 1].order + 1,
+      };
+      await stageRepo.put(row);
+      setStages((current) => [...current, row]);
+      return row;
+    },
+    [project, stages],
+  );
+
+  /** Writes happen before the state update, never inside it: see tasksRef. */
+  const patchStage = useCallback(
+    async (id: string, patch: Partial<Stage>) => {
+      const existing = stages.find((s) => s.id === id);
+      if (!existing) return;
+
+      const updated = { ...existing, ...patch };
+      await stageRepo.put(updated);
+      setStages((current) => current.map((s) => (s.id === id ? updated : s)));
+    },
+    [stages],
+  );
+
+  const renameStage = useCallback(
+    async (id: string, name: string) => {
+      const trimmed = name.trim();
+      if (trimmed === "") return;
+      await patchStage(id, { name: trimmed });
+    },
+    [patchStage],
+  );
+
+  const recolorStage = useCallback(
+    (id: string, color: string) => patchStage(id, { color }),
+    [patchStage],
+  );
+
+  const deleteStage = useCallback(
+    async (id: string): Promise<StageDeleteResult> => {
+      // Removing a stage that tasks point at would leave those rows with a
+      // stage that is not there, so it is refused rather than cascaded.
+      const inUse = tasksRef.current.filter((t) => t.stageId === id).length;
+      if (inUse > 0) return { ok: false, reason: "in-use", count: inUse };
+      if (stages.length <= 1) return { ok: false, reason: "last-stage", count: 0 };
+
+      await stageRepo.remove(id);
+      setStages((current) => current.filter((s) => s.id !== id));
+      return { ok: true };
+    },
+    [stages],
+  );
+
+  const addUser = useCallback(async (name: string, color: string) => {
+    const trimmed = name.trim();
+    if (trimmed === "") return null;
+
+    const row: User = { id: newId(), name: trimmed, color };
+    await userRepo.put(row);
+    setUsers((current) => [...current, row]);
+    return row;
+  }, []);
+
+  const patchTask = useCallback(
+    async (taskId: string, patch: Partial<Task>) => {
+      const current = tasksRef.current;
+      const existing = current.find((t) => t.id === taskId);
+      if (!existing) return;
+
+      const updated = { ...existing, ...patch, updatedAt: Date.now() };
+      await taskRepo.put(updated);
+      commit(current.map((t) => (t.id === taskId ? updated : t)));
+    },
+    [commit],
+  );
+
+  const setTaskAssignee = useCallback(
+    (taskId: string, assigneeId: string | null) => patchTask(taskId, { assigneeId }),
+    [patchTask],
+  );
+
+  const setTaskStage = useCallback(
+    (taskId: string, stageId: string) => patchTask(taskId, { stageId }),
+    [patchTask],
+  );
+
   return {
     loading,
     error,
+    projects: allProjects,
     project,
+    selectProject,
+    createProject,
+    addStage,
+    renameStage,
+    recolorStage,
+    deleteStage,
+    addUser,
+    setTaskAssignee,
+    setTaskStage,
     stages,
     users,
     tasks,

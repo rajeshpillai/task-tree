@@ -100,3 +100,21 @@
 - Files: src/state/useProjectData.ts, src/components/TaskRowMenu.tsx,
   src/components/rowActions.ts, src/components/TaskGrid.tsx, src/App.tsx,
   src/lib/tree.ts, src/test/setup.ts, and their tests
+
+## [2026-09-02 02:20]
+- Projects: switch between them and create new ones. A new project is seeded
+  with the three default stages, since a project with no stages cannot hold a
+  task.
+- Stages: add, rename, recolour and remove per project. Removing a stage that
+  tasks still point at is refused with the count, and the last stage cannot be
+  removed at all, because a task always needs one.
+- People: add someone, assign them from the row, or clear back to unassigned.
+- Assignee and stage cells are the platform select (zen-ui NativeSelect), not
+  the Radix one. It is accessible, and it does not carry the Pointer Events
+  problem that makes Radix menus untestable and slow under jsdom.
+- Stage writes had slipped back inside a state updater. Moved out, matching the
+  task mutations.
+- Contract 15-18 pass. 162 tests.
+- Files: src/state/useProjectData.ts, src/components/ProjectPicker.tsx,
+  src/components/StageEditor.tsx, src/components/UserEditor.tsx,
+  src/components/TaskGrid.tsx, src/App.tsx, and their tests

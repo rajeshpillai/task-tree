@@ -38,6 +38,8 @@ function renderGrid(tasks: Task[], handlers: Partial<Record<string, ReturnType<t
     onIndentTask: vi.fn(),
     onOutdentTask: vi.fn(),
     onDeleteTask: vi.fn(),
+    onAssign: vi.fn(),
+    onSetStage: vi.fn(),
     ...handlers,
   };
   render(<TaskGrid tasks={tasks} stages={STAGES} users={USERS} {...spies} />);
@@ -78,17 +80,17 @@ describe("TaskGrid", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("renders nothing for the stage when the stage no longer exists", () => {
+  it("still renders a task whose stage was removed", () => {
     renderGrid([task({ id: "Stranded", stageId: "deleted-stage" })]);
 
     expect(screen.getByText("Stranded")).toBeInTheDocument();
-    expect(screen.queryByText("Todo")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Stage for Stranded")).toHaveDisplayValue("No stage");
   });
 
   it("falls back to Unassigned when the assignee no longer exists", () => {
     renderGrid([task({ id: "Ghosted", assigneeId: "deleted-user" })]);
 
-    expect(screen.getByText("Unassigned")).toBeInTheDocument();
+    expect(screen.getByLabelText("Assignee for Ghosted")).toHaveDisplayValue("Unassigned");
   });
 
   it("formats a due date that is set", () => {
@@ -247,6 +249,46 @@ describe("row menu", () => {
     expect(screen.getByRole("button", { name: "Actions for child" })).toBeInTheDocument();
   });
 
+});
+
+describe("assignment and stage", () => {
+  it("assigns a person from the row", async () => {
+    const user = userEvent.setup();
+    const spies = renderGrid([task({ id: "t1", title: "Pick me" })]);
+
+    await user.selectOptions(screen.getByLabelText("Assignee for Pick me"), "u1");
+
+    expect(spies.onAssign).toHaveBeenCalledWith("t1", "u1");
+  });
+
+  it("clears an assignee back to unassigned", async () => {
+    const user = userEvent.setup();
+    const spies = renderGrid([task({ id: "t1", title: "Pick me", assigneeId: "u1" })]);
+
+    await user.selectOptions(screen.getByLabelText("Assignee for Pick me"), "");
+
+    expect(spies.onAssign).toHaveBeenCalledWith("t1", null);
+  });
+
+  it("changes a task's stage from the row", async () => {
+    const user = userEvent.setup();
+    const spies = renderGrid([task({ id: "t1", title: "Pick me" })]);
+
+    await user.selectOptions(screen.getByLabelText("Stage for Pick me"), "done");
+
+    expect(spies.onSetStage).toHaveBeenCalledWith("t1", "done");
+  });
+
+  it("offers every stage and every person", () => {
+    renderGrid([task({ id: "t1", title: "Pick me" })]);
+
+    expect(
+      within(screen.getByLabelText("Stage for Pick me")).getAllByRole("option").map((o) => o.textContent),
+    ).toEqual(["Todo", "In progress", "Completed"]);
+    expect(
+      within(screen.getByLabelText("Assignee for Pick me")).getAllByRole("option").map((o) => o.textContent),
+    ).toEqual(["Unassigned", "Rajesh"]);
+  });
 });
 
 describe("scale", () => {
