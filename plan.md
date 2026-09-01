@@ -31,6 +31,9 @@ a backend and is out of scope.
 data or switching machines loses everything, so JSON round-trip is a v1
 feature, not a nice-to-have.
 
+**Theme is zen-ui's `zen-theme`.** The suite ships `default`, `zen-theme`,
+`dark` and `paper`.
+
 **Nesting is unlimited depth.** `getSubRows` recurses anyway. Reparenting
 guards against cycles.
 
@@ -50,8 +53,15 @@ Task    { id, projectId, parentId | null, title, notes,
           createdAt, updatedAt }
 ```
 
-Indexes: `tasks.by-project` on `projectId`, `tasks.by-parent` on
-`[projectId, parentId]`, `stages.by-project` on `projectId`.
+Indexes: `tasks.by-project` on `projectId`, `stages.by-project` on
+`projectId`. There is deliberately no `by-parent` index: IndexedDB skips any
+record whose key path value is null, so every root task would be missing from
+it. A project's tasks are read flat and nested in memory, which that index was
+never needed for. `src/db/open.test.ts` pins this behaviour so the reasoning
+does not have to be rediscovered.
+
+An index `getAll` returns index-key then primary-key order, and ids are random
+UUIDs, so rows arrive shuffled. The repo sorts by `order` on the way out.
 
 `order` is a float so a drag between two rows is a midpoint write, not a
 renumber of the whole sibling list. Ids come from `crypto.randomUUID()`, no
@@ -142,7 +152,7 @@ Task: 3-db
   Action: IndexedDB open and upgrade, the four stores and their indexes, CRUD
           for each. Raw browser API behind this module, no wrapper dep.
   Verify: Tests against fake-indexeddb
-  Done:   Contract 1-6 pass
+  Done:   Contract 1, 2 and 6 pass (3-5 are buildTree, task 4)
 
 Task: 4-tree
   Files: src/lib/tree.ts, src/lib/tree.test.ts

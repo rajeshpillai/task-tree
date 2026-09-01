@@ -2,7 +2,7 @@
 
 ## Project setup and planning
 
-**Status:** planning complete, no code yet
+**Status:** tasks 1-3 complete
 
 ### Discussed and decided
 
@@ -45,6 +45,15 @@ explicitly. File-level backups (XXIII) stay in force alongside git;
   numbered tasks with verify and done criteria.
 - `.gitignore`, git repo initialized on `main`.
 - GitHub repo created at https://github.com/rajeshpillai/task-tree (private).
+
+**Theme is `zen-theme`.** Picked from the four zen-ui ships (`default`,
+`zen-theme`, `dark`, `paper`) to match the "modern with a fun vibe" direction.
+Applied at task 5, when the grid lands.
+
+**No by-parent index on tasks.** IndexedDB skips any record whose key path
+value is null, so root tasks (`parentId: null`) would silently vanish from
+such an index. The plan already read a project's tasks flat and nested them in
+memory, so the index was never load-bearing. A test pins the behaviour.
 
 ### Blocked
 
