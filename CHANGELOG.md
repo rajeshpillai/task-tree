@@ -79,3 +79,24 @@
 - Files: src/components/TaskGrid.tsx, src/components/TitleCell.tsx,
   src/state/useProjectData.ts, src/db/sample.ts, src/App.tsx, src/test/setup.ts,
   index.html, and their tests
+
+## [2026-09-02 02:10]
+- Task CRUD: add task, add subtask, delete a subtree with an undo toast, move
+  up and down, indent and outdent, and move a subtree to another project.
+- No drag and drop. TreeTable exposes no row-level drag hook, so dnd-kit cannot
+  reach its rows without forking it. The same operations ship as menu actions.
+- The first draft ran mutations inside a setState updater. StrictMode invokes
+  those twice, so every add would have created two tasks under two ids.
+  Rewritten to read from a ref that is updated in the same call as the state.
+- Radix drives its menu trigger from Pointer Events, which jsdom does not
+  implement, so a simulated click never opens the menu and the query hangs
+  until the test times out rather than failing. Worse, each open costs tens of
+  seconds of jsdom time. Row actions are now plain data (rowActions.ts) tested
+  directly, with a single keyboard-driven open covering the Radix integration.
+  Suite went from over three minutes to about 70 seconds.
+- Row menu is non-modal: a modal menu locks body scroll and traps focus, which
+  inside a virtualized grid freezes the table under it.
+- Contract 7-14 pass. 133 tests.
+- Files: src/state/useProjectData.ts, src/components/TaskRowMenu.tsx,
+  src/components/rowActions.ts, src/components/TaskGrid.tsx, src/App.tsx,
+  src/lib/tree.ts, src/test/setup.ts, and their tests

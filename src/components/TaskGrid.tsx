@@ -10,12 +10,19 @@ import {
 import type { Stage, Task, User } from "../db/schema";
 import { buildTree, type TaskNode } from "../lib/tree";
 import { TitleCell } from "./TitleCell";
+import { TaskRowMenu } from "./TaskRowMenu";
+import { rowActions } from "./rowActions";
 
 export interface TaskGridProps {
   tasks: readonly Task[];
   stages: readonly Stage[];
   users: readonly User[];
   onRenameTask: (id: string, title: string) => void;
+  onAddSubtask: (parentId: string) => void;
+  onMoveTask: (id: string, delta: number) => void;
+  onIndentTask: (id: string) => void;
+  onOutdentTask: (id: string) => void;
+  onDeleteTask: (id: string) => void;
   loading?: boolean;
 }
 
@@ -24,7 +31,18 @@ const dueDateFormat = new Intl.DateTimeFormat(undefined, {
   month: "short",
 });
 
-export function TaskGrid({ tasks, stages, users, onRenameTask, loading }: TaskGridProps) {
+export function TaskGrid({
+  tasks,
+  stages,
+  users,
+  onRenameTask,
+  onAddSubtask,
+  onMoveTask,
+  onIndentTask,
+  onOutdentTask,
+  onDeleteTask,
+  loading,
+}: TaskGridProps) {
   // Owned here rather than left to TreeTable, so a sort or a filter cannot
   // collapse rows the user opened.
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -114,8 +132,35 @@ export function TaskGrid({ tasks, stages, users, onRenameTask, loading }: TaskGr
             dueDateFormat.format(row.original.dueDate)
           ),
       },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        cell: ({ row }) => (
+          <TaskRowMenu
+            title={row.original.title}
+            actions={rowActions(row.original.id, {
+              onAddSubtask,
+              onMoveTask,
+              onIndentTask,
+              onOutdentTask,
+              onDeleteTask,
+            })}
+          />
+        ),
+      },
     ],
-    [onRenameTask, stageById, userById],
+    [
+      onAddSubtask,
+      onDeleteTask,
+      onIndentTask,
+      onMoveTask,
+      onOutdentTask,
+      onRenameTask,
+      stageById,
+      userById,
+    ],
   );
 
   if (!loading && tasks.length === 0) {

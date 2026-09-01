@@ -177,10 +177,15 @@ Task: 5-grid
 
 Task: 6-crud-ui
   Files: src/components/TaskGrid.tsx, src/components/TaskRowMenu.tsx, tests
-  Action: Add task, add subtask, delete subtree with undo toast, drag to
-          reorder and reparent via dnd-kit.
+  Action: Add task, add subtask, delete subtree with undo toast, move up and
+          down, indent and outdent.
   Verify: Testing Library covering delete, undo, and the cycle rejection
   Done:   Contract 7-14 pass
+
+  Deviation: no drag and drop. TreeTable exposes no row-level drag hook, so
+  dnd-kit cannot reach its rows without forking the component. Reorder and
+  reparent ship as menu actions, which cover the same operations and are
+  keyboard accessible. Drag belongs upstream in zen-ui.
 
 Task: 7-projects-stages
   Files: src/components/ProjectPicker.tsx, src/components/StageEditor.tsx, tests

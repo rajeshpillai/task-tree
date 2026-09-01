@@ -46,6 +46,28 @@ HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect(thi
   } as DOMRect;
 };
 
+/**
+ * Radix primitives (the dropdown menu, select, dialog) drive their open state
+ * through Pointer Events and scroll the focused item into view. jsdom
+ * implements none of these, and the failure is a hang rather than an error:
+ * the menu never opens and the query waits until the test times out.
+ */
+for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture"] as const) {
+  if (!(method in Element.prototype)) {
+    Object.defineProperty(Element.prototype, method, {
+      configurable: true,
+      value: method === "hasPointerCapture" ? () => false : () => {},
+    });
+  }
+}
+
+if (!("scrollIntoView" in Element.prototype)) {
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
+}
+
 afterEach(() => {
   cleanup();
 });

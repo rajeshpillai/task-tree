@@ -30,11 +30,18 @@ function task(over: Partial<Task> & { id: string }): Task {
   };
 }
 
-function renderGrid(tasks: Task[], onRenameTask = vi.fn()) {
-  render(
-    <TaskGrid tasks={tasks} stages={STAGES} users={USERS} onRenameTask={onRenameTask} />,
-  );
-  return { onRenameTask };
+function renderGrid(tasks: Task[], handlers: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
+  const spies = {
+    onRenameTask: vi.fn(),
+    onAddSubtask: vi.fn(),
+    onMoveTask: vi.fn(),
+    onIndentTask: vi.fn(),
+    onOutdentTask: vi.fn(),
+    onDeleteTask: vi.fn(),
+    ...handlers,
+  };
+  render(<TaskGrid tasks={tasks} stages={STAGES} users={USERS} {...spies} />);
+  return spies;
 }
 
 /** Row labels in the order they appear, ignoring the header row. */
@@ -223,6 +230,23 @@ describe("TaskGrid", () => {
       expect(onRenameTask).not.toHaveBeenCalled();
     });
   });
+});
+
+describe("row menu", () => {
+  const nested = [task({ id: "parent" }), task({ id: "child", parentId: "parent" })];
+
+  it("offers a menu on every visible row", async () => {
+    const user = userEvent.setup();
+    renderGrid(nested);
+
+    expect(screen.getByRole("button", { name: "Actions for parent" })).toBeInTheDocument();
+    // A collapsed child has no row, so no menu until its parent is opened.
+    expect(screen.queryByRole("button", { name: "Actions for child" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /expand all/i }));
+    expect(screen.getByRole("button", { name: "Actions for child" })).toBeInTheDocument();
+  });
+
 });
 
 describe("scale", () => {

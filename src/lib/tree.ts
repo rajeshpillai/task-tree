@@ -166,3 +166,14 @@ export function reorderSiblings(
   const settled = [...without.slice(0, index), moved, ...without.slice(index)];
   return settled.map((task, i) => ({ id: task.id, order: i }));
 }
+
+/** Tasks sharing a parent, in order. */
+export function siblingsOf(tasks: readonly Task[], parentId: string | null): Task[] {
+  return tasks.filter((t) => t.parentId === parentId).sort(byOrder);
+}
+
+/** The order value that puts a new task after every current sibling. */
+export function nextOrder(tasks: readonly Task[], parentId: string | null): number {
+  const siblings = siblingsOf(tasks, parentId);
+  return siblings.length === 0 ? 0 : siblings[siblings.length - 1].order + 1;
+}
