@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.env
+.env.*
+*.local
+.DS_Store
+.vite/
+*.backup.[0-9]*
+archive/
