@@ -110,23 +110,38 @@ export function TaskGrid({
         // workflow that means the first click lands on Completed, so the
         // stages read backwards.
         sortDescFirst: false,
-        cell: ({ row }) => (
-          <NativeSelect
-            aria-label={`Stage for ${row.original.title}`}
-            value={stageById.has(row.original.stageId) ? row.original.stageId : ""}
-            style={{ color: stageById.get(row.original.stageId)?.color }}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onSetStage(row.original.id, e.target.value)}
-          >
-            {/* A task whose stage was removed still has to render something. */}
-            {!stageById.has(row.original.stageId) && <option value="">No stage</option>}
-            {stages.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </NativeSelect>
-        ),
+        cell: ({ row }) => {
+          const stage = stageById.get(row.original.stageId);
+          return (
+            <span className="zen-inline-flex zen-items-center zen-gap-2">
+              {/*
+                The stage colour is a swatch, never the text colour. These are
+                badge colours picked against a tinted chip, and as text on the
+                page they land at about 4:1 in both themes, under the 4.5 that
+                body text needs.
+              */}
+              <span
+                aria-hidden="true"
+                style={{ background: stage?.color ?? "transparent" }}
+                className="zen-inline-block zen-h-2 zen-w-2 zen-shrink-0 zen-rounded-zen-full"
+              />
+              <NativeSelect
+                aria-label={`Stage for ${row.original.title}`}
+                value={stage ? row.original.stageId : ""}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onSetStage(row.original.id, e.target.value)}
+              >
+                {/* A task whose stage was removed still has to render something. */}
+                {!stage && <option value="">No stage</option>}
+                {stages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </span>
+          );
+        },
       },
       {
         id: "dueDate",

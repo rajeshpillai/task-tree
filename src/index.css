@@ -1,7 +1,17 @@
+/*
+ * The page must paint its own ground. Left to the browser, a reader in dark
+ * mode gets a dark canvas under zen-ui's light-theme text, which is how the
+ * grid ended up dark-on-dark. Background and foreground come from the active
+ * theme's tokens, so the two can never disagree.
+ */
 :root {
+  color-scheme: light;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
-  color-scheme: light dark;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -11,4 +21,6 @@
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--zen-color-background);
+  color: var(--zen-color-foreground);
 }

@@ -127,3 +127,18 @@
 - Repo made public, which is what GitHub Pages needs on a free plan.
 - Verified live: seeded content renders, a stage change survives a reload.
 - Files: .github/workflows/pages.yml, README.md
+
+## [2026-09-02 03:00]
+- Fixed contrast. index.css declared `color-scheme: light dark` without setting
+  a background, so a reader in dark mode got the browser's dark canvas under
+  zen-ui's light-theme text: task titles, due dates and labels were dark on
+  dark and effectively invisible. Body now paints its own background and
+  foreground from the active theme's tokens, so the two cannot disagree.
+- The app follows the system preference: zen-theme in light, zen-ui's dark
+  palette in dark. Set before first paint so there is no flash, with the
+  static attribute on <html> as the no-JS fallback.
+- Stage colour is now a swatch beside the select rather than the select's text
+  colour. Those are badge colours read against a tinted chip; as body text they
+  measured about 4:1 in both themes, under the 4.5 that AA requires.
+- Audited every text element in both themes: 32 checked, no failures.
+- Files: index.html, src/index.css, src/components/TaskGrid.tsx

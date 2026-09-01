@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Task Tree</title>
+    <script>
+      // Before first paint, so the page never flashes the wrong theme. The
+      // static data-theme on <html> is the no-JS fallback; this upgrades it to
+      // zen-ui's dark palette when the reader's system asks for one. Without
+      // it the browser paints a dark canvas under light-theme text and the
+      // grid reads as dark-on-dark.
+      (function () {
+        var dark = window.matchMedia("(prefers-color-scheme: dark)");
+        var apply = function (isDark) {
+          document.documentElement.setAttribute("data-theme", isDark ? "dark" : "zen-theme");
+        };
+        apply(dark.matches);
+        dark.addEventListener("change", function (e) { apply(e.matches); });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
