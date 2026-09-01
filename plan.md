@@ -27,6 +27,11 @@ An assignee is a name you define and pick from, useful for filtering and
 grouping, but nobody else ever sees it. Real multi-user assignment would need
 a backend and is out of scope.
 
+**A first run is seeded with sample content.** An empty grid is a poor first
+impression and gives nothing to try the filter, sort or nesting against. The
+sample is written in the same upgrade transaction as the project and its
+stages, so a first run either lands whole or not at all.
+
 **Export and import ships in v1.** IndexedDB is the only copy. Clearing site
 data or switching machines loses everything, so JSON round-trip is a v1
 feature, not a nice-to-have.
@@ -78,7 +83,8 @@ The build is done when every one of these passes. Each is a test, not a vibe.
 
 **Storage**
 1. Opening the app with an empty database creates a default project with
-   stages Todo, In progress, Completed.
+   stages Todo, In progress, Completed, plus sample tasks and users so the
+   first run opens on something to look at.
 2. A task written to IndexedDB is readable after a full page reload.
 3. `buildTree` turns a flat list into a nested one, parents before children.
 4. `buildTree` on an empty list returns an empty array, not a crash.

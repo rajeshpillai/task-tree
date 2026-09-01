@@ -55,3 +55,27 @@
 - Contract 3, 4, 5, 12 and 14 pass. 71 tests, coverage 98.98% statements,
   96.42% branches.
 - Files: src/lib/tree.ts, src/lib/tree.test.ts
+
+## [2026-09-02 00:58]
+- TaskGrid on zen-ui TreeTable: title, assignee, stage and due columns, inline
+  title editing, expand/collapse, sort, global filter, virtualization.
+- Seeded sample content on first run: 5 top-level tasks nesting three deep,
+  three users, spread across the stages with due dates either side of today.
+- Applied zen-theme via data-theme on the document element.
+- Stage and due columns sorted descending on the first click, because TanStack
+  defaults a numeric column that way. Clicking Stage put Completed first, so
+  the workflow read backwards. Fixed with sortDescFirst: false.
+- Filtering kept a match's ancestors visible but left them collapsed, so a
+  search showed the parent and hid the row that matched. Everything expands
+  while a search is active, and the user's own expansion returns on clear.
+- jsdom does no layout and has no ResizeObserver, so the virtualizer measured
+  a zero-height scroller and rendered no rows, making the grid look empty to
+  every assertion. The test setup now gives elements a real box, so components
+  are tested in the configuration they ship in.
+- Installed @tanstack/react-table 8.21.3 as a dev dependency for types only.
+  The runtime is bundled inside zen-ui's dist, but its declarations import
+  those types, and without them ColumnDef silently degrades to any.
+- Contract 19-23 pass. 100 tests, coverage 98.44% statements, 88.98% branches.
+- Files: src/components/TaskGrid.tsx, src/components/TitleCell.tsx,
+  src/state/useProjectData.ts, src/db/sample.ts, src/App.tsx, src/test/setup.ts,
+  index.html, and their tests

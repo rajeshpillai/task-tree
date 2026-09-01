@@ -2,7 +2,7 @@
 
 ## Project setup and planning
 
-**Status:** tasks 1-4 complete
+**Status:** tasks 1-5 complete
 
 ### Discussed and decided
 
@@ -63,6 +63,21 @@ JSON, so this is a real case rather than a hypothetical one.
 roughly fifty splits of the same gap. Rather than let two rows share an order
 and jump around, reorderSiblings renumbers the sibling list when the midpoint
 collapses.
+
+**First run is seeded with sample content.** Asked for during task 5. An
+empty grid gives nothing to try the filter, sort or nesting against. Written
+in the same upgrade transaction as the project and its stages.
+
+**@tanstack/react-table is a dev dependency for types only.** A consequence of
+the bundler-alias route: zen-ui bundles the runtime into its dist, but its
+declarations still import the types, and without the package installed
+ColumnDef resolves to `any` and column definitions go unchecked. Pinned to
+8.21.3 to match what zen-ui bundles.
+
+**Tests give jsdom a layout box rather than turning virtualization off.**
+jsdom does no layout and ships no ResizeObserver, so a virtualizer measures a
+zero-height scroller and renders nothing. Disabling virtualization in tests
+would mean never testing the shipped configuration.
 
 ### Blocked
 

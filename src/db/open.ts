@@ -8,6 +8,7 @@ import {
   type Project,
   type Stage,
 } from "./schema";
+import { sampleData } from "./sample";
 
 /**
  * Resolves when the request settles. Every IndexedDB call is event-based, so
@@ -38,6 +39,7 @@ function seed(tx: IDBTransaction): void {
   tx.objectStore(STORE.projects).add(project);
 
   const stages = tx.objectStore(STORE.stages);
+  const stageIds: string[] = [];
   DEFAULT_STAGES.forEach((stage, i) => {
     const row: Stage = {
       id: newId(),
@@ -46,8 +48,18 @@ function seed(tx: IDBTransaction): void {
       color: stage.color,
       order: i,
     };
+    stageIds.push(row.id);
     stages.add(row);
   });
+
+  // A first run opens on something worth looking at rather than an empty
+  // grid. Same transaction as the project and its stages, so the whole first
+  // run either lands or does not.
+  const sample = sampleData(project.id, stageIds);
+  const users = tx.objectStore(STORE.users);
+  for (const user of sample.users) users.add(user);
+  const tasks = tx.objectStore(STORE.tasks);
+  for (const task of sample.tasks) tasks.add(task);
 }
 
 function upgrade(db: IDBDatabase, tx: IDBTransaction): void {

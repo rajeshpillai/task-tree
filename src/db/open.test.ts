@@ -2,7 +2,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it } from "vitest";
 import { closeDb, openDb, request } from "./open";
 import { DB_NAME, DB_VERSION, DEFAULT_PROJECT_NAME, DEFAULT_STAGES, STORE } from "./schema";
-import { projects, stages } from "./repo";
+import { projects, stages, tasks, users } from "./repo";
 
 beforeEach(async () => {
   await closeDb();
@@ -14,6 +14,47 @@ describe("openDb", () => {
     const db = await openDb();
     expect(db.version).toBe(DB_VERSION);
     expect([...db.objectStoreNames].sort()).toEqual(["projects", "stages", "tasks", "users"]);
+  });
+
+  it("seeds sample tasks and users so a first run is not an empty grid", async () => {
+    await openDb();
+    const [project] = await projects.all();
+
+    const seededTasks = await tasks.byProject(project.id);
+    expect(seededTasks.length).toBeGreaterThan(10);
+    expect(seededTasks.some((t) => t.parentId !== null)).toBe(true);
+    expect(await users.all()).not.toHaveLength(0);
+  });
+
+  it("gives every sample task a stage that exists", async () => {
+    await openDb();
+    const [project] = await projects.all();
+    const stageIds = new Set((await stages.byProject(project.id)).map((s) => s.id));
+
+    for (const task of await tasks.byProject(project.id)) {
+      expect(stageIds).toContain(task.stageId);
+    }
+  });
+
+  it("gives every sample task either a real assignee or none", async () => {
+    await openDb();
+    const [project] = await projects.all();
+    const userIds = new Set((await users.all()).map((u) => u.id));
+
+    for (const task of await tasks.byProject(project.id)) {
+      if (task.assigneeId !== null) expect(userIds).toContain(task.assigneeId);
+    }
+  });
+
+  it("gives every sample subtask a parent that exists", async () => {
+    await openDb();
+    const [project] = await projects.all();
+    const all = await tasks.byProject(project.id);
+    const ids = new Set(all.map((t) => t.id));
+
+    for (const task of all) {
+      if (task.parentId !== null) expect(ids).toContain(task.parentId);
+    }
   });
 
   it("seeds a default project with the three default stages", async () => {

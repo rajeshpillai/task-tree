@@ -11,9 +11,13 @@ beforeEach(async () => {
   await closeDb();
   globalThis.indexedDB = new IDBFactory();
   await openDb();
-  const [project] = await projects.all();
-  projectId = project.id;
-  stageId = (await stages.byProject(projectId))[0].id;
+
+  // A fresh project rather than the seeded one, so the sample content cannot
+  // leak into assertions about counts.
+  projectId = newId();
+  await projects.put({ id: projectId, name: "Test project", createdAt: Date.now() });
+  stageId = newId();
+  await stages.put({ id: stageId, projectId, name: "Todo", color: "#000", order: 0 });
 });
 
 function makeTask(over: Partial<Task> = {}): Task {
@@ -140,25 +144,25 @@ describe("stages", () => {
     });
 
     expect((await stages.byProject(other.id)).map((s) => s.name)).toEqual(["Backlog"]);
-    expect(await stages.byProject(projectId)).toHaveLength(3);
+    expect((await stages.byProject(projectId)).map((s) => s.name)).toEqual(["Todo"]);
   });
 
   it("removes a stage", async () => {
     const [first] = await stages.byProject(projectId);
     await stages.remove(first.id);
-    expect(await stages.byProject(projectId)).toHaveLength(2);
+    expect(await stages.byProject(projectId)).toEqual([]);
   });
 });
 
 describe("users", () => {
-  it("starts empty and round-trips", async () => {
-    expect(await users.all()).toEqual([]);
+  it("round-trips a user", async () => {
+    const before = await users.all();
 
-    const row = { id: newId(), name: "Rajesh", color: "#6366f1" };
+    const row = { id: newId(), name: "Ada", color: "#6366f1" };
     await users.put(row);
-    expect(await users.all()).toEqual([row]);
+    expect(await users.all()).toContainEqual(row);
 
     await users.remove(row.id);
-    expect(await users.all()).toEqual([]);
+    expect(await users.all()).toEqual(before);
   });
 });
