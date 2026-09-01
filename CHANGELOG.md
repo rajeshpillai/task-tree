@@ -41,3 +41,17 @@
 - Contract 1, 2 and 6 pass. 30 tests, coverage 98.97% statements, 100% branches.
 - Files: src/db/schema.ts, src/db/open.ts, src/db/repo.ts, src/db/open.test.ts,
   src/db/open.failures.test.ts, src/db/repo.test.ts, .oxlintrc.json, plan.md
+
+## [2026-09-02 00:47]
+- Pure tree functions: buildTree, flattenTree, subtreeIds, isDescendant,
+  canReparent, midpoint, reorderSiblings. No database, no React.
+- buildTree never drops a task. An orphan whose parent is missing surfaces at
+  the root, and a task caught in a parent cycle is detached and promoted
+  rather than left unreachable and invisible.
+- reorderSiblings normally writes one midpoint row. Floats run out of room
+  after about fifty splits of one gap, and a collapsed midpoint would leave two
+  rows sharing an order and jumping around, so it renumbers the sibling list
+  when that happens. Both paths are tested, including fifty repeated splits.
+- Contract 3, 4, 5, 12 and 14 pass. 71 tests, coverage 98.98% statements,
+  96.42% branches.
+- Files: src/lib/tree.ts, src/lib/tree.test.ts

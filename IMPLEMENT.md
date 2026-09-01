@@ -2,7 +2,7 @@
 
 ## Project setup and planning
 
-**Status:** tasks 1-3 complete
+**Status:** tasks 1-4 complete
 
 ### Discussed and decided
 
@@ -54,6 +54,15 @@ Applied at task 5, when the grid lands.
 value is null, so root tasks (`parentId: null`) would silently vanish from
 such an index. The plan already read a project's tasks flat and nested them in
 memory, so the index was never load-bearing. A test pins the behaviour.
+
+**buildTree loses nothing.** Orphans and cycles both surface at the root
+instead of vanishing. Cycles are reachable through import of user-supplied
+JSON, so this is a real case rather than a hypothetical one.
+
+**Ordering degrades gracefully.** A float midpoint runs out of room after
+roughly fifty splits of the same gap. Rather than let two rows share an order
+and jump around, reorderSiblings renumbers the sibling list when the midpoint
+collapses.
 
 ### Blocked
 
