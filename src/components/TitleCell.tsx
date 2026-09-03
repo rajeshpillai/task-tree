@@ -3,6 +3,14 @@ import { useEffect, useRef, useState } from "react";
 export interface TitleCellProps {
   title: string;
   onCommit: (title: string) => void;
+  /** Opens the editor without a click, for a row that was just created. */
+  autoEdit?: boolean;
+  /**
+   * Fires as soon as an `autoEdit` has been picked up, so the caller can drop
+   * it. Without that, virtualization remounting the row later would reopen the
+   * editor on a row the user had moved on from.
+   */
+  onAutoEditConsumed?: () => void;
 }
 
 /**
@@ -10,13 +18,36 @@ export interface TitleCellProps {
  * whitespace-only title is treated as a cancel, since a blank row is
  * unrecoverable from the grid alone.
  */
-export function TitleCell({ title, onCommit }: TitleCellProps) {
+export function TitleCell({ title, onCommit, autoEdit = false, onAutoEditConsumed }: TitleCellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
+  const [wasAutoEdit, setWasAutoEdit] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Opened during render rather than from an effect. An effect runs after the
+  // commit, so the row would paint once as plain text and then swap to an
+  // input; React re-renders a render-phase adjustment before painting at all.
+  if (autoEdit !== wasAutoEdit) {
+    setWasAutoEdit(autoEdit);
+    if (autoEdit) {
+      setDraft(title);
+      setEditing(true);
+    }
+  }
+
+  // Reported once the signal has been acted on, so the owner can drop it:
+  // otherwise virtualization remounting this row would reopen an editor the
+  // user had moved on from.
   useEffect(() => {
-    if (editing) inputRef.current?.select();
+    if (autoEdit) onAutoEditConsumed?.();
+  }, [autoEdit, onAutoEditConsumed]);
+
+  useEffect(() => {
+    if (!editing) return;
+    // focus before select: select() alone leaves the caret in an input the
+    // keyboard is not pointed at, so the first keystroke goes nowhere.
+    inputRef.current?.focus();
+    inputRef.current?.select();
   }, [editing]);
 
   function commit() {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button, Toaster, ToastAction, toast } from "@algorisys/zen-ui-react";
 import { ProjectPicker } from "./components/ProjectPicker";
 import { StageEditor } from "./components/StageEditor";
@@ -8,10 +8,29 @@ import { useProjectData } from "./state/useProjectData";
 
 export function App() {
   const data = useProjectData();
+  const { addTask, deleteTask } = data;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newTaskId, setNewTaskId] = useState<string | null>(null);
 
-  async function handleDelete(id: string) {
-    const result = await data.deleteTask(id);
+  /**
+   * The grid, not this component, knows what is hiding a row and which cell
+   * takes the caret. It only needs to be told which task is the new one.
+   *
+   * The handlers below are memoized because the grid rebuilds its column
+   * definitions whenever one changes identity, and TanStack renders a cell
+   * renderer as a component: a rebuild remounts every cell and throws away the
+   * open title editor. Inline arrows here would close it on the next render.
+   */
+  const handleAdd = useCallback(
+    async (parentId: string | null) => {
+      const task = await addTask(parentId);
+      if (task) setNewTaskId(task.id);
+    },
+    [addTask],
+  );
+
+  const handleDelete = useCallback(async (id: string) => {
+    const result = await deleteTask(id);
     if (!result) return;
 
     toast({
@@ -23,7 +42,9 @@ export function App() {
         </ToastAction>
       ),
     });
-  }
+  }, [deleteTask]);
+
+  const forgetNewTask = useCallback(() => setNewTaskId(null), []);
 
   return (
     <main className="zen-mx-auto zen-flex zen-max-w-6xl zen-flex-col zen-gap-4 zen-p-6">
@@ -40,7 +61,7 @@ export function App() {
           <Button variant="outline" onClick={() => setSettingsOpen((open) => !open)}>
             {settingsOpen ? "Hide settings" : "Settings"}
           </Button>
-          <Button onClick={() => void data.addTask(null)} disabled={data.loading || !data.project}>
+          <Button onClick={() => void handleAdd(null)} disabled={data.loading || !data.project}>
             Add task
           </Button>
         </div>
@@ -68,13 +89,16 @@ export function App() {
           users={data.users}
           loading={data.loading}
           onRenameTask={data.renameTask}
-          onAddSubtask={(parentId) => void data.addTask(parentId)}
-          onMoveTask={(id, delta) => void data.moveTask(id, delta)}
-          onIndentTask={(id) => void data.indentTask(id)}
-          onOutdentTask={(id) => void data.outdentTask(id)}
-          onDeleteTask={(id) => void handleDelete(id)}
-          onAssign={(id, assigneeId) => void data.setTaskAssignee(id, assigneeId)}
-          onSetStage={(id, stageId) => void data.setTaskStage(id, stageId)}
+          onAddSubtask={handleAdd}
+          onMoveTask={data.moveTask}
+          onIndentTask={data.indentTask}
+          onOutdentTask={data.outdentTask}
+          onDeleteTask={handleDelete}
+          onAssign={data.setTaskAssignee}
+          onSetStage={data.setTaskStage}
+          onSetPriority={data.setTaskPriority}
+          newTaskId={newTaskId}
+          onNewTaskRevealed={forgetNewTask}
         />
       )}
 

@@ -142,3 +142,81 @@
   measured about 4:1 in both themes, under the 4.5 that AA requires.
 - Audited every text element in both themes: 32 checked, no failures.
 - Files: index.html, src/index.css, src/components/TaskGrid.tsx
+
+## [2026-09-03 21:22]
+- Adding a task now reveals it and puts the caret in its title. Every collapsed
+  ancestor opens, an active search is cleared, and the placeholder "New task"
+  is selected so the first keystroke replaces it. Covers both the row menu's
+  Add subtask and the header's Add task.
+- Adding a subtask to a collapsed row used to look like it did nothing: the row
+  landed as the last child of a closed parent, and while a search was active it
+  was filtered out entirely.
+- `ancestorIds` added to src/lib/tree.ts, cycle-safe like its neighbours.
+- The reveal is a render-phase state adjustment, not an effect. An effect runs
+  after the commit, so the row would paint collapsed and then open.
+- TaskGrid passes the signal through context rather than a column prop.
+  TanStack renders a `cell` renderer as a component, so rebuilding the column
+  definitions hands React a new component type and remounts every cell; the
+  open title editor was being destroyed by its own state change.
+- App's grid handlers are now memoized for the same reason. They were inline
+  arrows, so any App render rebuilt the columns and closed an editor the user
+  had open — a latent bug this feature would have hit constantly.
+- Files: src/App.tsx, src/components/TaskGrid.tsx, src/components/TitleCell.tsx,
+  src/lib/tree.ts, src/lib/tree.test.ts, src/components/TaskGrid.test.tsx
+
+## [2026-09-03 21:45]
+- Priority on every task: High, Medium or Low, set from a dropdown in its own
+  grid column, sorted by the scale rather than by the alphabet.
+- Each priority cell is colour coded — a wash of the priority's colour with a
+  boundary in the colour itself. The label text is never recoloured, so the
+  meaning is carried in words and the colour is a second signal.
+- Priority colours are a per-theme token pair in index.css, not one hex.
+  #f59e0b measured 1.89:1 against its own chip on the light page, under the
+  3:1 that WCAG 1.4.11 asks of a control's boundary, and a hue light enough
+  for the dark page is the hue that vanishes on the light one. Measured after:
+  boundary 4.92-7.58:1 light, 6.45-10.69:1 dark; label 13.2-14.2:1 light,
+  10.3-11.6:1 dark.
+- Fixed the open dropdown. A `<select>` hands its background-color to the
+  OS-drawn option list, and the popup composited the translucent wash over a
+  light canvas instead of over the page: in dark mode the list came out cream
+  under the theme's near-white option text. The wash is now mixed opaquely
+  against the theme's background, so the popup ground and its text always
+  agree — 11.6:1 dark, 13.3:1 light.
+- DB_VERSION 2. `upgrade` now branches on `oldVersion` instead of assuming a
+  first run, and backfills every existing task with the middle priority by
+  cursor. A browser already holding v1 data is migrated, not reseeded.
+- Parent rows carry a subtask count badge in the title cell: a tree glyph and
+  the number of direct children. A collapsed chevron says there is something
+  below, never whether it is one task or thirty. Announced as "3 subtasks",
+  or "1 subtask, 4 in total" when the subtree runs deeper than one level.
+- Files: src/db/schema.ts, src/db/open.ts, src/db/sample.ts, src/index.css,
+  src/state/useProjectData.ts, src/components/TaskGrid.tsx,
+  src/components/SubtaskCount.tsx, src/components/subtaskLabel.ts, src/App.tsx,
+  and the tests beside them
+
+## [2026-09-03 21:58]
+- The subtask count badge is coloured: teal ink on a teal wash, with the wash
+  deepening in three steps as the subtree grows (12% up to 2 tasks, 22% to 6,
+  32% beyond). The size of a collapsed subtree now reads as weight on the page
+  before the number is read at all.
+- Teal because every other family was taken. Red, amber and slate are priority;
+  slate, indigo and emerald are the default stages; indigo is the primary
+  button. A badge in any of those would read as urgency or workflow state.
+- Ink constant, wash variable. Recolouring the number instead would trade its
+  legibility for the signal, and light mode has too narrow a band of readable
+  teals for an ink ramp to be visible at all.
+- Three discrete steps, not a continuum: an 18% chip and a 21% one are
+  indistinguishable, so a per-task ramp buys nothing and leaves the contrast
+  unbounded.
+- Two tokens rather than one. A wash of the ink itself came out grey-green at
+  the heavy end; the wash is a more saturated teal so a full chip stays green.
+- Measured, both themes, worst case at the heaviest wash: number on its own
+  chip 6.57/5.80/5.14:1 light and 10.05/8.29/6.60:1 dark across the three
+  steps, all past the 4.5:1 text needs. Ink against the page 7.58:1 light and
+  12.07:1 dark. Verified independently of the change, and confirmed opaque by
+  compositing each colour over both white and black for identical results.
+- The wash is mixed opaquely against the theme background for the same reason
+  the priority chip is: grid rows have their own hover colour, and a
+  translucent chip would not be read at the contrast it was measured at.
+- Files: src/index.css, src/components/SubtaskCount.tsx,
+  src/components/SubtaskCount.test.tsx

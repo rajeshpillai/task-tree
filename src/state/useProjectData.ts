@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { projects, stages as stageRepo, tasks as taskRepo, users as userRepo } from "../db/repo";
 import {
+  DEFAULT_PRIORITY,
   DEFAULT_STAGES,
   newId,
+  type Priority,
   type Project,
   type Stage,
   type Task,
@@ -39,6 +41,7 @@ export interface ProjectData {
   addUser: (name: string, color: string) => Promise<User | null>;
   setTaskAssignee: (taskId: string, assigneeId: string | null) => Promise<void>;
   setTaskStage: (taskId: string, stageId: string) => Promise<void>;
+  setTaskPriority: (taskId: string, priority: Priority) => Promise<void>;
   addTask: (parentId: string | null, title?: string) => Promise<Task | null>;
   renameTask: (id: string, title: string) => Promise<void>;
   deleteTask: (id: string) => Promise<{ count: number; undo: Undo } | null>;
@@ -118,6 +121,7 @@ export function useProjectData(): ProjectData {
         notes: "",
         assigneeId: null,
         stageId: stages[0].id,
+        priority: DEFAULT_PRIORITY,
         order: nextOrder(current, parentId),
         dueDate: null,
         createdAt: now,
@@ -400,6 +404,11 @@ export function useProjectData(): ProjectData {
     [patchTask],
   );
 
+  const setTaskPriority = useCallback(
+    (taskId: string, priority: Priority) => patchTask(taskId, { priority }),
+    [patchTask],
+  );
+
   return {
     loading,
     error,
@@ -414,6 +423,7 @@ export function useProjectData(): ProjectData {
     addUser,
     setTaskAssignee,
     setTaskStage,
+    setTaskPriority,
     stages,
     users,
     tasks,

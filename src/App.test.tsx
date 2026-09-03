@@ -38,6 +38,7 @@ describe("App", () => {
       notes: "",
       assigneeId: null,
       stageId: stage.id,
+      priority: "medium",
       order: 0,
       dueDate: null,
       createdAt: now,

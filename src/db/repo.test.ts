@@ -30,6 +30,7 @@ function makeTask(over: Partial<Task> = {}): Task {
     notes: "",
     assigneeId: null,
     stageId,
+    priority: "medium",
     order: 0,
     dueDate: null,
     createdAt: now,

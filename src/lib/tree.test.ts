@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "../db/schema";
 import {
+  ancestorIds,
   buildTree,
   canReparent,
   flattenTree,
@@ -23,6 +24,7 @@ function task(id: string, parentId: string | null, order = 0): Task {
     notes: "",
     assigneeId: null,
     stageId: "s1",
+    priority: "medium",
     order,
     dueDate: null,
     createdAt: clock,
@@ -153,6 +155,30 @@ describe("subtreeIds", () => {
 
   it("terminates on a cycle", () => {
     expect(subtreeIds([task("a", "b"), task("b", "a")], "a").sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("ancestorIds", () => {
+  const tasks = [task("a", null), task("a1", "a"), task("a1i", "a1"), task("b", null)];
+
+  it("walks up from a deep task, nearest parent first", () => {
+    expect(ancestorIds(tasks, "a1i")).toEqual(["a1", "a"]);
+  });
+
+  it("is empty for a root task", () => {
+    expect(ancestorIds(tasks, "a")).toEqual([]);
+  });
+
+  it("is empty for a task that is not present", () => {
+    expect(ancestorIds(tasks, "ghost")).toEqual([]);
+  });
+
+  it("stops at a parent that is no longer in the list", () => {
+    expect(ancestorIds([task("orphan", "deleted")], "orphan")).toEqual(["deleted"]);
+  });
+
+  it("terminates on a cycle rather than looping forever", () => {
+    expect(ancestorIds([task("a", "b"), task("b", "a")], "a")).toEqual(["b"]);
   });
 });
 

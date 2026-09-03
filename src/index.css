@@ -10,8 +10,26 @@
   line-height: 1.5;
 }
 
+/*
+ * Priority colours, one pair per theme rather than one hex for both.
+ *
+ * A single badge hue cannot serve both grounds: amber #f59e0b measured 1.89:1
+ * against its own tinted chip on a white page, under the 3:1 that WCAG 1.4.11
+ * asks of a control's boundary, and a hue light enough to read on the dark
+ * ground is exactly the hue that disappears on the light one. Each of these
+ * clears 4.9:1 against the page it is used on.
+ */
+:root {
+  --priority-high: #b91c1c;
+  --priority-medium: #a16207;
+  --priority-low: #475569;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --priority-high: #f87171;
+  --priority-medium: #fbbf24;
+  --priority-low: #94a3b8;
 }
 
 * {
@@ -23,4 +41,48 @@ body {
   min-height: 100vh;
   background: var(--zen-color-background);
   color: var(--zen-color-foreground);
+}
+
+/*
+ * Subtask-badge colours, same per-theme shape as the priorities above.
+ *
+ * Teal on purpose. Red, amber and slate are spoken for by priority, and
+ * slate, indigo and emerald by the default stages, so a badge in any of
+ * those would read as urgency or as workflow state. Teal is what is left
+ * that still looks intentional, and it says "structure", not "urgent". The
+ * ink is dark enough to be read against its own chip; the wash is a more
+ * saturated teal so that a heavy chip stays green rather than going grey,
+ * which is what a wash of the ink itself did.
+ *
+ * Two tokens, one ink and one wash, because the badge's own intensity is a
+ * third variable: the wash strength grows with the subtree (see
+ * SubtaskCount.tsx), and that only works if the number's colour holds still
+ * while the fill behind it deepens.
+ *
+ * Ratios measured in the browser, by compositing the real computed colours
+ * of a badge in the grid onto a canvas and reading the pixel back, rather
+ * than by eye or by arithmetic over the declared values.
+ *
+ * The number against its own chip, at the three wash steps:
+ *
+ *              12%     22%     32%
+ *   light      6.57    5.80    5.14
+ *   dark      10.05    8.29    6.60
+ *
+ * All clear the 4.5:1 that text needs, and the heaviest wash is the worst
+ * case in both themes (a heavier wash darkens the chip under the light
+ * theme's dark ink, and lightens it under the dark theme's light one). The
+ * border and glyph clear 3:1 several times over: they are the ink, so they
+ * match the column above against the chip, and against the page behind the
+ * badge they measure 7.58:1 light and 12.07:1 dark — 6.84 and 9.92 on a
+ * hovered row, whose background is its own colour.
+ */
+:root {
+  --subtree-ink: #115e59;
+  --subtree-wash: #0d9488;
+}
+
+:root[data-theme="dark"] {
+  --subtree-ink: #5eead4;
+  --subtree-wash: #14b8a6;
 }

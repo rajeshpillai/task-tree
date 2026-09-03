@@ -99,6 +99,23 @@ export function subtreeIds(tasks: readonly Task[], rootId: string): string[] {
   return out;
 }
 
+/**
+ * Every ancestor of `id`, nearest parent first. Cycle-safe: a parent chain
+ * that loops back on itself stops at the repeat rather than spinning.
+ */
+export function ancestorIds(tasks: readonly Task[], id: string): string[] {
+  const parentOf = new Map(tasks.map((t) => [t.id, t.parentId]));
+  const out: string[] = [];
+  const seen = new Set<string>([id]);
+  let current = parentOf.get(id) ?? null;
+  while (current !== null && !seen.has(current)) {
+    out.push(current);
+    seen.add(current);
+    current = parentOf.get(current) ?? null;
+  }
+  return out;
+}
+
 /** Whether `candidateId` sits anywhere under `ancestorId`. Cycle-safe. */
 export function isDescendant(
   tasks: readonly Task[],

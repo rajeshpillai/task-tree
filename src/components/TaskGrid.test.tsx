@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Stage, Task, User } from "../db/schema";
@@ -22,6 +22,7 @@ function task(over: Partial<Task> & { id: string }): Task {
     notes: "",
     assigneeId: null,
     stageId: "todo",
+    priority: "medium",
     order: 0,
     dueDate: null,
     createdAt: clock,
@@ -40,18 +41,30 @@ function renderGrid(tasks: Task[], handlers: Partial<Record<string, ReturnType<t
     onDeleteTask: vi.fn(),
     onAssign: vi.fn(),
     onSetStage: vi.fn(),
+    onSetPriority: vi.fn(),
     ...handlers,
   };
   render(<TaskGrid tasks={tasks} stages={STAGES} users={USERS} {...spies} />);
   return spies;
 }
 
-/** Row labels in the order they appear, ignoring the header row. */
+/**
+ * Row labels in the order they appear, ignoring the header row. Read from the
+ * title element rather than the whole cell, which also carries the expand
+ * chevron and the subtask badge. A row being edited holds an input, whose text
+ * is its value rather than its textContent.
+ */
 function visibleTitles(): string[] {
   return screen
     .getAllByRole("row")
     .slice(1)
-    .map((row) => within(row).getAllByRole("cell")[0].textContent?.trim() ?? "");
+    .map((row) => {
+      const cell = within(row).getAllByRole("cell")[0];
+      const input = cell.querySelector("input");
+      if (input) return input.value;
+      const title = cell.querySelector('button:not([aria-hidden="true"])');
+      return title?.textContent?.trim() ?? cell.textContent?.trim() ?? "";
+    });
 }
 
 describe("TaskGrid", () => {
@@ -234,6 +247,103 @@ describe("TaskGrid", () => {
   });
 });
 
+/**
+ * A new task is created outside the grid, so the grid learns about it from
+ * `newTaskId`. Driving it that way also keeps these tests clear of the row
+ * menu, which is a Radix menu and expensive to open under jsdom (see
+ * TaskRowMenu.test.tsx).
+ */
+describe("a newly added task", () => {
+  const nested = [
+    task({ id: "parent" }),
+    task({ id: "child", parentId: "parent" }),
+    task({ id: "fresh", parentId: "child", title: "New task" }),
+  ];
+
+  function renderWith(props: Partial<React.ComponentProps<typeof TaskGrid>>) {
+    const onNewTaskRevealed = vi.fn();
+    const base = {
+      tasks: nested,
+      stages: STAGES,
+      users: USERS,
+      onRenameTask: vi.fn(),
+      onAddSubtask: vi.fn(),
+      onMoveTask: vi.fn(),
+      onIndentTask: vi.fn(),
+      onOutdentTask: vi.fn(),
+      onDeleteTask: vi.fn(),
+      onAssign: vi.fn(),
+      onSetStage: vi.fn(),
+      onSetPriority: vi.fn(),
+      onNewTaskRevealed,
+    };
+    const view = render(<TaskGrid {...base} {...props} />);
+    return {
+      onNewTaskRevealed,
+      rerender: (next: Partial<React.ComponentProps<typeof TaskGrid>>) =>
+        view.rerender(<TaskGrid {...base} {...next} />),
+    };
+  }
+
+  it("opens every collapsed ancestor so the row is on screen", () => {
+    renderWith({ newTaskId: "fresh" });
+
+    expect(visibleTitles()).toEqual(["parent", "child", "New task"]);
+  });
+
+  it("puts the caret in the new row's title, with the placeholder selected", async () => {
+    renderWith({ newTaskId: "fresh" });
+
+    const input = await screen.findByRole("textbox", { name: "Rename New task" });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("New task");
+  });
+
+  it("edits only the new row, leaving its ancestors as plain titles", async () => {
+    renderWith({ newTaskId: "fresh" });
+
+    await screen.findByRole("textbox", { name: "Rename New task" });
+    expect(screen.getByRole("button", { name: "parent" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Rename parent" })).not.toBeInTheDocument();
+  });
+
+  it("clears an active search, which would otherwise hide the new row", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderWith({});
+
+    const search = screen.getByPlaceholderText("Search tasks…");
+    await user.type(search, "parent");
+    expect(visibleTitles()).toEqual(["parent"]);
+
+    rerender({ newTaskId: "fresh" });
+
+    expect(search).toHaveValue("");
+    expect(visibleTitles()).toContain("New task");
+  });
+
+  it("reports back so the caller can drop the id", async () => {
+    const { onNewTaskRevealed } = renderWith({ newTaskId: "fresh" });
+
+    await waitFor(() => expect(onNewTaskRevealed).toHaveBeenCalled());
+  });
+
+  it("does nothing until the task itself arrives in the list", () => {
+    const { rerender } = renderWith({ tasks: [nested[0], nested[1]], newTaskId: "fresh" });
+
+    // Only the id is known so far; nothing to open and nothing to focus.
+    expect(visibleTitles()).toEqual(["parent"]);
+
+    rerender({ newTaskId: "fresh" });
+    expect(visibleTitles()).toEqual(["parent", "child", "New task"]);
+  });
+
+  it("leaves every row read-only when no task was just added", () => {
+    renderWith({});
+
+    expect(screen.queryByRole("textbox", { name: /^Rename/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("row menu", () => {
   const nested = [task({ id: "parent" }), task({ id: "child", parentId: "parent" })];
 
@@ -288,6 +398,161 @@ describe("assignment and stage", () => {
     expect(
       within(screen.getByLabelText("Assignee for Pick me")).getAllByRole("option").map((o) => o.textContent),
     ).toEqual(["Unassigned", "Rajesh"]);
+  });
+});
+
+describe("the subtask count hint", () => {
+  it("shows how many children a collapsed row is hiding", () => {
+    renderGrid([
+      task({ id: "parent" }),
+      task({ id: "a", parentId: "parent" }),
+      task({ id: "b", parentId: "parent" }),
+    ]);
+
+    // The chevron says there is something below; the badge says how much.
+    expect(screen.getByRole("img", { name: "2 subtasks" })).toBeInTheDocument();
+  });
+
+  it("counts direct children, and names the deeper total as well", () => {
+    renderGrid([
+      task({ id: "parent" }),
+      task({ id: "child", parentId: "parent" }),
+      task({ id: "grandchild", parentId: "child" }),
+      task({ id: "great", parentId: "grandchild" }),
+    ]);
+
+    expect(screen.getByRole("img", { name: "1 subtask, 3 in total" })).toBeInTheDocument();
+  });
+
+  it("puts the hint in the title cell, beside the task it belongs to", () => {
+    renderGrid([task({ id: "parent" }), task({ id: "child", parentId: "parent" })]);
+
+    const titleCell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0];
+    expect(within(titleCell).getByRole("img", { name: "1 subtask" })).toBeInTheDocument();
+  });
+
+  it("shows no hint on a leaf, which would otherwise read as a zero", () => {
+    renderGrid([task({ id: "alone" })]);
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("gives each row its own count once the tree is open", async () => {
+    const user = userEvent.setup();
+    renderGrid([
+      task({ id: "parent" }),
+      task({ id: "child", parentId: "parent" }),
+      task({ id: "g1", parentId: "child" }),
+      task({ id: "g2", parentId: "child" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /expand all/i }));
+
+    expect(screen.getByRole("img", { name: "1 subtask, 3 in total" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "2 subtasks" })).toBeInTheDocument();
+  });
+
+  it("does not swallow the title's own accessible name", () => {
+    renderGrid([task({ id: "parent", title: "Ship v1" }), task({ id: "c", parentId: "parent" })]);
+
+    expect(screen.getByRole("button", { name: "Ship v1" })).toBeInTheDocument();
+  });
+});
+
+describe("priority", () => {
+  it("offers the whole scale, most urgent first", () => {
+    renderGrid([task({ id: "t1", title: "Pick me" })]);
+
+    expect(
+      within(screen.getByLabelText("Priority for Pick me"))
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["High", "Medium", "Low"]);
+  });
+
+  it("shows the task's own priority", () => {
+    renderGrid([task({ id: "t1", title: "Pick me", priority: "high" })]);
+
+    expect(screen.getByLabelText("Priority for Pick me")).toHaveDisplayValue("High");
+  });
+
+  it("changes a task's priority from the row", async () => {
+    const user = userEvent.setup();
+    const spies = renderGrid([task({ id: "t1", title: "Pick me" })]);
+
+    await user.selectOptions(screen.getByLabelText("Priority for Pick me"), "high");
+
+    expect(spies.onSetPriority).toHaveBeenCalledWith("t1", "high");
+  });
+
+  it("colour codes the cell, and codes each priority differently", () => {
+    renderGrid([
+      task({ id: "t1", title: "Urgent", priority: "high" }),
+      task({ id: "t2", title: "Whenever", priority: "low" }),
+    ]);
+
+    const high = screen.getByLabelText("Priority for Urgent");
+    const low = screen.getByLabelText("Priority for Whenever");
+
+    expect(high.style.backgroundColor).not.toBe("");
+    expect(high.style.borderColor).not.toBe("");
+    expect(high.style.borderColor).not.toBe(low.style.borderColor);
+  });
+
+  it("takes its colour from a per-theme token, not a fixed hue", () => {
+    renderGrid([task({ id: "t1", title: "Urgent", priority: "high" })]);
+    const cell = screen.getByLabelText("Priority for Urgent");
+
+    // One literal hex cannot pass contrast on both grounds: amber measured
+    // 1.89:1 against its own chip on the light page, under the 3:1 that a
+    // control's boundary needs, and a hue light enough for the dark page is
+    // the hue that vanishes on the light one. index.css holds a pair per
+    // priority; a hex creeping back in here is the regression to catch.
+    expect(cell.style.borderColor).toBe("var(--priority-high)");
+    expect(cell.style.backgroundColor).toContain("var(--priority-high)");
+  });
+
+  it("mixes the wash opaquely, because the OS option list inherits it", () => {
+    renderGrid([task({ id: "t1", title: "Urgent", priority: "high" })]);
+    const cell = screen.getByLabelText("Priority for Urgent");
+
+    // A select hands its background-color to the OS-drawn option list, and the
+    // popup composites a translucent colour over a light canvas rather than
+    // over the page. A 16% amber came out cream there while the option text
+    // stayed the dark theme's near-white: unreadable. Mixing against the
+    // theme's background instead keeps the popup and its text in agreement.
+    expect(cell.style.backgroundColor).toContain("var(--zen-color-background)");
+    expect(cell.style.backgroundColor).not.toContain("transparent");
+  });
+
+  it("keeps the label as the meaning, so colour is never the only signal", () => {
+    renderGrid([task({ id: "t1", title: "Urgent", priority: "high" })]);
+
+    // The colour is a tint and a border; the text stays the inherited
+    // foreground, which is the only thing measured for contrast.
+    expect(screen.getByLabelText("Priority for Urgent").style.color).toBe("");
+    expect(screen.getByLabelText("Priority for Urgent")).toHaveDisplayValue("High");
+  });
+
+  it("sorts by the scale rather than alphabetically", async () => {
+    const user = userEvent.setup();
+    // Alphabetically this is High, Low, Medium. By urgency it is High, Medium,
+    // Low.
+    renderGrid([
+      task({ id: "b", priority: "medium" }),
+      task({ id: "c", priority: "low" }),
+      task({ id: "a", priority: "high" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /priority/i }));
+
+    expect(visibleTitles()).toEqual(["a", "b", "c"]);
+  });
+
+  it("still renders a task whose priority was never set", () => {
+    renderGrid([task({ id: "t1", title: "Legacy", priority: undefined as never })]);
+
+    expect(screen.getByLabelText("Priority for Legacy")).toHaveDisplayValue("Unset");
   });
 });
 

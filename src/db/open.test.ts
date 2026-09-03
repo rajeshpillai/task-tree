@@ -1,7 +1,15 @@
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it } from "vitest";
 import { closeDb, openDb, request } from "./open";
-import { DB_NAME, DB_VERSION, DEFAULT_PROJECT_NAME, DEFAULT_STAGES, STORE } from "./schema";
+import {
+  DB_NAME,
+  DB_VERSION,
+  DEFAULT_PRIORITY,
+  DEFAULT_PROJECT_NAME,
+  DEFAULT_STAGES,
+  PRIORITIES,
+  STORE,
+} from "./schema";
 import { projects, stages, tasks, users } from "./repo";
 
 beforeEach(async () => {
@@ -10,7 +18,7 @@ beforeEach(async () => {
 });
 
 describe("openDb", () => {
-  it("creates the four stores at version 1", async () => {
+  it("creates the four stores", async () => {
     const db = await openDb();
     expect(db.version).toBe(DB_VERSION);
     expect([...db.objectStoreNames].sort()).toEqual(["projects", "stages", "tasks", "users"]);
@@ -34,6 +42,24 @@ describe("openDb", () => {
     for (const task of await tasks.byProject(project.id)) {
       expect(stageIds).toContain(task.stageId);
     }
+  });
+
+  it("gives every sample task a priority on the scale", async () => {
+    await openDb();
+    const [project] = await projects.all();
+    const ids = new Set(PRIORITIES.map((p) => p.id));
+
+    for (const task of await tasks.byProject(project.id)) {
+      expect(ids).toContain(task.priority);
+    }
+  });
+
+  it("spreads the sample across the whole scale, so the colour coding shows", async () => {
+    await openDb();
+    const [project] = await projects.all();
+    const used = new Set((await tasks.byProject(project.id)).map((t) => t.priority));
+
+    expect(used.size).toBe(PRIORITIES.length);
   });
 
   it("gives every sample task either a real assignee or none", async () => {
@@ -118,5 +144,74 @@ describe("index design", () => {
 describe("DB_NAME", () => {
   it("is stable, since changing it orphans every existing user's data", () => {
     expect(DB_NAME).toBe("task-tree");
+  });
+});
+
+describe("the v1 to v2 migration", () => {
+  /**
+   * Opens a v1 database by hand and writes a task shaped the way v1 stored
+   * one, with no priority at all. Anyone already running the app has exactly
+   * this on disk, so reseeding instead of migrating would lose their tasks.
+   */
+  async function seedV1Task(): Promise<string> {
+    const id = "legacy-task";
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        db.createObjectStore(STORE.projects, { keyPath: "id" });
+        db.createObjectStore(STORE.stages, { keyPath: "id" }).createIndex(
+          "by-project",
+          "projectId",
+        );
+        db.createObjectStore(STORE.users, { keyPath: "id" });
+        db.createObjectStore(STORE.tasks, { keyPath: "id" }).createIndex(
+          "by-project",
+          "projectId",
+        );
+        req.transaction!.objectStore(STORE.projects).add({
+          id: "p1",
+          name: "Existing work",
+          createdAt: 1,
+        });
+        req.transaction!.objectStore(STORE.tasks).add({
+          id,
+          projectId: "p1",
+          parentId: null,
+          title: "Written before priorities existed",
+          notes: "",
+          assigneeId: null,
+          stageId: "s1",
+          order: 0,
+          dueDate: null,
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      };
+      req.onsuccess = () => {
+        req.result.close();
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+    return id;
+  }
+
+  it("backfills the default priority rather than dropping the task", async () => {
+    const id = await seedV1Task();
+
+    const db = await openDb();
+    expect(db.version).toBe(DB_VERSION);
+
+    const migrated = await tasks.get(id);
+    expect(migrated?.title).toBe("Written before priorities existed");
+    expect(migrated?.priority).toBe(DEFAULT_PRIORITY);
+  });
+
+  it("keeps the existing project instead of reseeding over it", async () => {
+    await seedV1Task();
+    await openDb();
+
+    expect((await projects.all()).map((p) => p.name)).toEqual(["Existing work"]);
   });
 });

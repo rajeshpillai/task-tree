@@ -1,8 +1,9 @@
-import { DEFAULT_STAGES, newId, type Task, type User } from "./schema";
+import { DEFAULT_PRIORITY, DEFAULT_STAGES, newId, type Priority, type Task, type User } from "./schema";
 
 interface SampleTask {
   title: string;
   stage: number;
+  priority?: Priority;
   assignee?: number;
   /** Days from today. Negative is overdue. */
   due?: number;
@@ -22,20 +23,22 @@ const SAMPLE_TASKS: readonly SampleTask[] = [
     stage: 1,
     assignee: 0,
     due: 6,
+    priority: "high",
     children: [
       {
         title: "Write the copy",
         stage: 2,
         assignee: 1,
         due: -2,
+        priority: "high",
         children: [
           { title: "Headline and subhead", stage: 2, assignee: 1 },
-          { title: "Pricing section", stage: 1, assignee: 1, due: 1 },
+          { title: "Pricing section", stage: 1, assignee: 1, due: 1, priority: "high" },
         ],
       },
       { title: "Design the hero", stage: 1, assignee: 2, due: 3 },
       { title: "Wire up the signup form", stage: 0, assignee: 0, due: 5 },
-      { title: "Set up analytics", stage: 0, due: 8 },
+      { title: "Set up analytics", stage: 0, due: 8, priority: "low" },
     ],
   },
   {
@@ -44,15 +47,15 @@ const SAMPLE_TASKS: readonly SampleTask[] = [
     assignee: 2,
     due: 14,
     children: [
-      { title: "Fix the crash on cold start", stage: 1, assignee: 2, due: 2 },
-      { title: "Dark mode polish", stage: 0, assignee: 1, due: 10 },
+      { title: "Fix the crash on cold start", stage: 1, assignee: 2, due: 2, priority: "high" },
+      { title: "Dark mode polish", stage: 0, assignee: 1, due: 10, priority: "low" },
       {
         title: "App store submission",
         stage: 0,
         due: 13,
         children: [
           { title: "Screenshots for every device size", stage: 0, assignee: 0 },
-          { title: "Write the release notes", stage: 0 },
+          { title: "Write the release notes", stage: 0, priority: "low" },
         ],
       },
     ],
@@ -72,9 +75,10 @@ const SAMPLE_TASKS: readonly SampleTask[] = [
     stage: 0,
     assignee: 1,
     due: 4,
+    priority: "high",
     notes: "Fails about one run in five, always on the payment step.",
   },
-  { title: "Renew the SSL certificate", stage: 0, due: 21 },
+  { title: "Renew the SSL certificate", stage: 0, due: 21, priority: "low" },
 ];
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -103,6 +107,7 @@ export function sampleData(
         notes: item.notes ?? "",
         assigneeId: item.assignee === undefined ? null : users[item.assignee].id,
         stageId: stageIds[item.stage],
+        priority: item.priority ?? DEFAULT_PRIORITY,
         order: index,
         dueDate: item.due === undefined ? null : now + item.due * DAY,
         createdAt: now,

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { closeDb, openDb } from "../db/open";
 import { projects, tasks as taskRepo } from "../db/repo";
-import { newId } from "../db/schema";
+import { DEFAULT_PRIORITY, newId } from "../db/schema";
 import { siblingsOf, subtreeIds } from "../lib/tree";
 import { useProjectData } from "./useProjectData";
 
@@ -74,6 +74,42 @@ describe("addTask", () => {
     const stored = await taskRepo.get(child!.id);
     expect(stored?.parentId).toBe(parent.id);
     expect(siblingsOf(result.current.tasks, parent.id).map(titled)).toContain("A subtask");
+  });
+});
+
+describe("setTaskPriority", () => {
+  it("writes the new priority through to storage", async () => {
+    const { result } = await loaded();
+    const target = result.current.tasks[0];
+
+    await act(async () => {
+      await result.current.setTaskPriority(target.id, "low");
+    });
+
+    expect(result.current.tasks.find((t) => t.id === target.id)?.priority).toBe("low");
+    expect((await taskRepo.get(target.id))?.priority).toBe("low");
+  });
+
+  it("leaves a new task in the middle of the scale, which claims nothing", async () => {
+    const { result } = await loaded();
+
+    let created: { id: string } | null = null;
+    await act(async () => {
+      created = await result.current.addTask(null);
+    });
+
+    expect((await taskRepo.get(created!.id))?.priority).toBe(DEFAULT_PRIORITY);
+  });
+
+  it("does nothing for a task that is not there", async () => {
+    const { result } = await loaded();
+    const before = result.current.tasks;
+
+    await act(async () => {
+      await result.current.setTaskPriority(newId(), "high");
+    });
+
+    expect(result.current.tasks).toEqual(before);
   });
 });
 

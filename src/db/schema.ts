@@ -1,5 +1,5 @@
 export const DB_NAME = "task-tree";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORE = {
   projects: "projects",
@@ -28,6 +28,27 @@ export interface User {
   color: string;
 }
 
+export type Priority = "high" | "medium" | "low";
+
+/**
+ * The three priorities, most urgent first. Unlike stages these are not
+ * editable data: it is a fixed scale, so it lives in code rather than in a
+ * store. No colour here — that is presentation, it has to differ per theme,
+ * and it lives with the tokens in index.css.
+ */
+export const PRIORITIES: ReadonlyArray<{ id: Priority; label: string }> = [
+  { id: "high", label: "High" },
+  { id: "medium", label: "Medium" },
+  { id: "low", label: "Low" },
+];
+
+/**
+ * What a new task gets, and what a task written before priorities existed is
+ * backfilled with. Middle of the scale, so a backfill makes no claim about
+ * work nobody has triaged.
+ */
+export const DEFAULT_PRIORITY: Priority = "medium";
+
 export interface Task {
   id: string;
   projectId: string;
@@ -37,6 +58,7 @@ export interface Task {
   notes: string;
   assigneeId: string | null;
   stageId: string;
+  priority: Priority;
   /**
    * Float, so dropping a row between two siblings is a midpoint write rather
    * than a renumber of the whole sibling list.

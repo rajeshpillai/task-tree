@@ -1,12 +1,14 @@
 import {
   DB_NAME,
   DB_VERSION,
+  DEFAULT_PRIORITY,
   DEFAULT_PROJECT_NAME,
   DEFAULT_STAGES,
   STORE,
   newId,
   type Project,
   type Stage,
+  type Task,
 } from "./schema";
 import { sampleData } from "./sample";
 
@@ -62,7 +64,7 @@ function seed(tx: IDBTransaction): void {
   for (const task of sample.tasks) tasks.add(task);
 }
 
-function upgrade(db: IDBDatabase, tx: IDBTransaction): void {
+function createStores(db: IDBDatabase, tx: IDBTransaction): void {
   db.createObjectStore(STORE.projects, { keyPath: "id" });
 
   const stages = db.createObjectStore(STORE.stages, { keyPath: "id" });
@@ -79,6 +81,36 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction): void {
   seed(tx);
 }
 
+/**
+ * Gives every task written before v2 the default priority. A cursor rather
+ * than getAll plus putMany: this runs inside the versionchange transaction,
+ * where the whole migration has to be one synchronous walk, and it keeps the
+ * store off the heap on a large database.
+ */
+function backfillPriority(tx: IDBTransaction): void {
+  const cursorRequest = tx.objectStore(STORE.tasks).openCursor();
+  cursorRequest.onsuccess = () => {
+    const cursor = cursorRequest.result;
+    if (!cursor) return;
+    const task = cursor.value as Task;
+    // Only the ones actually missing it, so a re-entered migration is a no-op
+    // and a task already triaged is never overwritten.
+    if (task.priority === undefined) cursor.update({ ...task, priority: DEFAULT_PRIORITY });
+    cursor.continue();
+  };
+}
+
+/**
+ * Runs for every version between the one on disk and DB_VERSION, so a browser
+ * holding v1 data is migrated rather than reseeded. `oldVersion` is 0 on a
+ * first run, which is what makes the store creation and the seed conditional
+ * on the same check.
+ */
+function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number): void {
+  if (oldVersion < 1) createStores(db, tx);
+  if (oldVersion >= 1 && oldVersion < 2) backfillPriority(tx);
+}
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 export function openDb(): Promise<IDBDatabase> {
@@ -87,7 +119,7 @@ export function openDb(): Promise<IDBDatabase> {
     // The spec guarantees a versionchange transaction for the whole of
     // onupgradeneeded; the type is nullable only because the property is null
     // outside that window.
-    req.onupgradeneeded = () => upgrade(req.result, req.transaction!);
+    req.onupgradeneeded = (event) => upgrade(req.result, req.transaction!, event.oldVersion);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error("another tab is holding an older version open"));

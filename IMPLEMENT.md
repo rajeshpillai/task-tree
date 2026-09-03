@@ -89,6 +89,80 @@ controls from Pointer Events, which jsdom does not implement: a simulated click
 never opens them, and each open costs tens of seconds of test time. The native
 select is accessible and carries none of that.
 
+**A new task opens itself for naming.** Asked for on 3 September 2026. Adding
+a subtask to a collapsed row appeared to do nothing, so the grid now opens
+every collapsed ancestor of a new task, clears an active search that would
+filter it out, and puts the caret in its title with the placeholder selected.
+The grid is told only which task is new; it owns the question of what was
+hiding the row and which cell takes the caret.
+
+**A cell that owns state cannot depend on the column definitions.** TanStack
+renders a `cell` renderer *as a component*, so rebuilding the columns array
+hands React a new component type and remounts every cell in the grid. The
+first cut of the auto-focus put the target row's id in the columns memo, which
+remounted the very cell it had just told to open an editor, and the editor
+closed as fast as it opened. The signal now travels by context, the columns
+memo depends on nothing that changes mid-edit, and App's grid handlers are
+memoized rather than inline arrows. That last part also fixes a bug that
+predates this feature: any App render used to close an open title editor.
+
+**The reveal happens during render, not in an effect.** An effect runs after
+the commit, so the row would paint collapsed and then open, and paint as plain
+text and then swap to an input. A render-phase state adjustment is React's
+documented answer for reacting to a changed prop, and oxlint's
+`set-state-in-effect` rule points the same way.
+
+**Priority is a fixed scale in code, not editable data.** Asked for on 3
+September 2026. Stages live in a store because a team renames them; High,
+Medium and Low are a scale, so `PRIORITIES` is a constant. Its colour is not in
+there either: that is presentation, it has to differ per theme, and it lives
+with the tokens in index.css.
+
+**One hex cannot colour-code both themes.** The first cut used badge hues, and
+amber measured 1.89:1 against its own chip on the white page — under the 3:1
+WCAG 1.4.11 asks of a control's boundary. A hue light enough to read on the
+dark ground is exactly the hue that vanishes on the light one, so each priority
+is a token pair, dark-on-light and light-on-dark, every one clearing 4.9:1.
+
+**A `<select>` hands its background-color to the OS popup.** The wash was
+translucent so it would composite over either theme's surface, which is right
+for the control's own face and wrong for the option list: the popup composites
+over a light canvas rather than over the page, so in dark mode a 16% amber came
+out cream while the option text stayed the theme's near-white. Reported as a
+contrast bug and confirmed by measurement. The wash is now mixed opaquely
+against `--zen-color-background`, so the colour the popup inherits is dark in
+dark mode and light in light mode and always agrees with the text on it. The
+rule this leaves behind: never give a form control a translucent background.
+
+**The v2 migration branches on `oldVersion`.** The original `upgrade` assumed a
+first run, which is fine at version 1 and destructive at version 2 — anyone
+already using the app has v1 tasks on disk. Store creation and the seed now sit
+behind `oldVersion < 1`, and the priority backfill walks the task store with a
+cursor, skipping rows that already have one so a re-entered migration is a
+no-op.
+
+**The subtask count shows direct children, with the total only when it
+differs.** A collapsed chevron says something is below but not how much. The
+visible number is the direct children because that is what expanding reveals;
+the accessible name adds "N in total" only when the subtree runs deeper than
+one level, since otherwise it says the same figure twice.
+
+**The subtask badge's colour carries the subtree's size.** Asked for on 3
+September 2026, delegated to a second agent working only on the badge. Teal,
+because red/amber/slate are priority and slate/indigo/emerald are the default
+stages, so anything from those families would read as urgency or workflow
+state. The ink holds still and only the wash deepens, in three steps rather
+than a continuum: nobody can tell an 18% chip from a 21% one, and holding the
+ink still keeps the number equally legible at every step instead of trading
+legibility for the signal. It took two tokens, not one — a wash of the ink
+itself went grey-green at the heavy end.
+
+The measurements were reproduced independently of the agent that made the
+change, including a check that every colour in the stack is opaque
+(compositing over white and black gives identical pixels). That matters here
+because grid rows have their own hover background: a translucent chip is not
+read at the contrast it was measured at.
+
 ### Blocked
 
 Nothing blocked. The repo was made public on 2 September 2026, which unblocks
